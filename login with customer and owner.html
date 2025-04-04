@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Shopping System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #ffffff;
+    }
+    nav {
+      background-color: #1f1f1f;
+      display: flex;
+      padding: 15px;
+      justify-content: space-around;
+      align-items: center;
+    }
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 20px;
+      border-radius: 8px;
+      transition: background 0.3s;
+    }
+    nav a:hover {
+      background-color: #333333;
+    }
+    .container {
+      display: none;
+      padding: 30px;
+    }
+    .active {
+      display: block;
+    }
+    h2 {
+      color: #00ffcc;
+    }
+    input, button, select, textarea {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      border: none;
+      border-radius: 6px;
+    }
+    button {
+      background-color: #00bfa5;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #008e76;
+    }
+    #qrCanvas {
+      margin-top: 20px;
+    }
+    .remove-btn {
+      background: red;
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-weight: bold;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .login-register {
+      max-width: 400px;
+      margin: 50px auto;
+      background: #1c1c1c;
+      padding: 30px;
+      border-radius: 12px;
+    }
+    .login-register h2 {
+      text-align: center;
+      color: #00ffcc;
+    }
+  </style>
+</head>
+<body>
+
+<div id="auth" class="login-register">
+  <h2 id="authTitle">Login</h2>
+  <input type="text" id="authUsername" placeholder="Username">
+  <input type="password" id="authPassword" placeholder="Password">
+  <button onclick="handleAuth()">Submit</button>
+  <p id="toggleAuth" style="text-align:center; cursor:pointer;" onclick="toggleAuth()">New user? Register here</p>
+  <p id="authMsg" style="color:lime; text-align:center;"></p>
+</div>
+
+<nav style="display:none;">
+  <a href="#" onclick="showMenu('owner')">🛠️ Owner Panel</a>
+  <a href="#" onclick="showMenu('search')">🔍 Search & Cart</a>
+  <a href="#" onclick="showMenu('trolley')">🛒 Trolley Tracker</a>
+  <a href="#" onclick="showMenu('checkout')">💳 Checkout</a>
+  <a href="#" onclick="showMenu('payment')">📱 QR Payment</a>
+</nav>
+
+<div id="owner" class="container">
+  <h2>🛠️ Owner Panel</h2>
+  <label>Enter Shop Sections (comma-separated):</label>
+  <input type="text" id="shopSections">
+  <button onclick="saveSections()">Save Sections</button>
+  <p id="sectionMsg"></p>
+
+  <label>Add Product Name:</label>
+  <input type="text" id="productName">
+  <label>Select Section:</label>
+  <select id="sectionSelect"></select>
+  <label>Price (₹):</label>
+  <input type="number" id="productPrice">
+  <button onclick="addProduct()">Add Product</button>
+  <p id="productMsg"></p>
+  <h3>📦 Product List</h3>
+  <ul id="productList"></ul>
+</div>
+
+<div id="search" class="container">
+  <h2>🔍 Search & Cart</h2>
+  <input type="text" id="searchProduct" placeholder="Enter product name">
+  <button onclick="searchProductFunc()">Search</button>
+  <p id="searchResult"></p>
+
+  <label>Enter Quantity:</label>
+  <input type="number" id="productQty" value="1">
+  <button onclick="addToCart()">Add to Cart</button>
+
+  <h3>🛒 Cart</h3>
+  <ul id="cartList"></ul>
+</div>
+
+<div id="trolley" class="container">
+  <h2>🛒 Trolley Tracker</h2>
+  <p id="trolleyCurrent"></p>
+  <h3>📍 Movement History</h3>
+  <ul id="trolleyHistory"></ul>
+</div>
+
+<div id="checkout" class="container">
+  <h2>💳 Checkout</h2>
+  <button onclick="checkout()">Generate Bill</button>
+  <p id="checkoutResult"></p>
+</div>
+
+<div id="payment" class="container">
+  <h2>📱 QR Payment</h2>
+  <p>Scan the QR below to pay</p>
+  <canvas id="qrCanvas" width="200" height="200"></canvas>
+</div>
+
+<script>
+  let users = {};
+  let currentUser = null;
+  let isLogin = true;
+  let sections = [];
+  let products = [];
+  let cart = {};
+  let trolleyHistory = [];
+  let qr = null;
+
+  function toggleAuth() {
+    isLogin = !isLogin;
+    document.getElementById("authTitle").textContent = isLogin ? "Login" : "Register";
+    document.getElementById("toggleAuth").textContent = isLogin ? "New user? Register here" : "Already a user? Login here";
+    document.getElementById("authMsg").textContent = "";
+  }
+
+  function handleAuth() {
+    const user = document.getElementById("authUsername").value.trim();
+    const pass = document.getElementById("authPassword").value.trim();
+    if (!user || !pass) return;
+    if (isLogin) {
+      if (users[user] === pass) {
+        currentUser = user;
+        document.getElementById("auth").style.display = "none";
+        document.querySelector("nav").style.display = "flex";
+        showMenu('owner');
+      } else {
+        document.getElementById("authMsg").textContent = "❌ Invalid Credentials";
+      }
+    } else {
+      users[user] = pass;
+      document.getElementById("authMsg").textContent = "✅ Registered! Redirecting to Login...";
+      setTimeout(() => {
+        toggleAuth();
+      }, 1500);
+    }
+  }
+
+  function showMenu(id) {
+    document.querySelectorAll(".container").forEach(div => div.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  function saveSections() {
+    const input = document.getElementById("shopSections").value;
+    sections = input.split(",").map(s => s.trim());
+    const select = document.getElementById("sectionSelect");
+    select.innerHTML = "";
+    sections.forEach(sec => {
+      let opt = document.createElement("option");
+      opt.value = sec;
+      opt.textContent = sec;
+      select.appendChild(opt);
+    });
+    document.getElementById("sectionMsg").textContent = "✅ Sections Saved";
+  }
+
+  function addProduct() {
+    const name = document.getElementById("productName").value.toLowerCase();
+    const section = document.getElementById("sectionSelect").value;
+    const price = document.getElementById("productPrice").value;
+    if (name && section && price) {
+      products.push({ name, section, price });
+      updateProductList();
+      document.getElementById("productMsg").textContent = `✅ Added ${name}`;
+    }
+  }
+
+  function updateProductList() {
+    const list = document.getElementById("productList");
+    list.innerHTML = "";
+    products.forEach(p => {
+      const li = document.createElement("li");
+      li.textContent = `${p.name} - ₹${p.price} - ${p.section}`;
+      list.appendChild(li);
+    });
+  }
+
+  function searchProductFunc() {
+    const name = document.getElementById("searchProduct").value.toLowerCase();
+    const product = products.find(p => p.name === name);
+    document.getElementById("searchResult").textContent = product ? `📍 ${product.section}, 💰 ₹${product.price}` : "❌ Product not found";
+  }
+
+  function addToCart() {
+    const name = document.getElementById("searchProduct").value.toLowerCase();
+    const qty = parseInt(document.getElementById("productQty").value);
+    const product = products.find(p => p.name === name);
+    if (product) {
+      cart[name] = { quantity: qty, total: qty * product.price };
+      updateCart();
+    }
+  }
+
+  function removeFromCart(name) {
+    delete cart[name];
+    updateCart();
+  }
+
+  function updateCart() {
+    const list = document.getElementById("cartList");
+    list.innerHTML = "";
+    for (let name in cart) {
+      const li = document.createElement("li");
+      li.innerHTML = `${name}: ${cart[name].quantity} pcs - ₹${cart[name].total} <button class="remove-btn" onclick="removeFromCart('${name}')">❌</button>`;
+      list.appendChild(li);
+    }
+  }
+
+  function autoMoveTrolley() {
+    if (sections.length === 0) return;
+    const sec = sections[Math.floor(Math.random() * sections.length)];
+    trolleyHistory.push(sec);
+    document.getElementById("trolleyCurrent").textContent = `Trolley is here → ${sec}`;
+    updateTrolleyHistory();
+  }
+
+  function updateTrolleyHistory() {
+    const list = document.getElementById("trolleyHistory");
+    list.innerHTML = "";
+    trolleyHistory.slice(-10).reverse().forEach(s => {
+      const li = document.createElement("li");
+      li.textContent = s;
+      list.appendChild(li);
+    });
+  }
+
+  function checkout() {
+    let total = Object.values(cart).reduce((sum, item) => sum + item.total, 0);
+    document.getElementById("checkoutResult").textContent = `🧾 Total Bill: ₹${total}`;
+    generateQR(`Pay ₹${total} to Smart Cart`);
+  }
+
+  function generateQR(text) {
+    if (!qr) {
+      qr = new QRious({
+        element: document.getElementById('qrCanvas'),
+        size: 200,
+        value: text
+      });
+    } else {
+      qr.value = text;
+    }
+  }
+
+  // Trolley movement every 3 seconds
+  setInterval(autoMoveTrolley, 3000);
+</script>
+</body>
+</html>
